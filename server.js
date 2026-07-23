@@ -36,10 +36,15 @@ app.get("/api/items/:id", (req, res) => {
  * 2) Llama al outbound WhatsApp de la empresa
  */
 app.post("/api/rent", async (req, res) => {
-  const { itemId, phone } = req.body ?? {};
+  const { itemId, phone, days } = req.body ?? {};
 
   if (!itemId) {
     return res.status(400).json({ error: "itemId is required" });
+  }
+
+  const rentalDays = Number(days);
+  if (!Number.isInteger(rentalDays) || rentalDays < 1 || rentalDays > 30) {
+    return res.status(400).json({ error: "days must be an integer between 1 and 30" });
   }
 
   const item = getItemById(itemId);
@@ -58,11 +63,16 @@ app.post("/api/rent", async (req, res) => {
     });
   }
 
+  const totalPrice = item.pricePerDay * rentalDays;
+
   try {
     const payload = {
       itemId: item.id,
       itemName: item.name,
       pricePerDay: item.pricePerDay,
+      days: rentalDays,
+      totalPrice,
+      currency: "USD",
       ...(phone ? { phone } : {}),
     };
 
@@ -98,6 +108,9 @@ app.post("/api/rent", async (req, res) => {
     return res.status(200).json({
       ok: true,
       itemId: item.id,
+      days: rentalDays,
+      totalPrice,
+      currency: "USD",
       message: "WhatsApp flow started",
       upstream: upstreamBody,
     });

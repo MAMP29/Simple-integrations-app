@@ -13,11 +13,11 @@ export async function fetchItems() {
   return data.items ?? [];
 }
 
-export async function rentItem(itemId) {
+export async function rentItem({ itemId, days }) {
   const res = await fetch("/api/rent", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ itemId }),
+    body: JSON.stringify({ itemId, days }),
   });
 
   const data = await res.json().catch(() => ({}));

@@ -17,67 +17,96 @@
 
     <header class="site-header">
       <p class="brand">Kora</p>
-      <p class="tagline">Equipo listo para usar. Alquila en un toque.</p>
+      <p class="tagline">Equipo listo para usar. Elige días y sigue por WhatsApp.</p>
     </header>
 
-    <nav class="tabs" role="tablist" aria-label="Secciones">
-      <button
-        type="button"
-        class="tab is-active"
-        role="tab"
-        id="tab-catalog"
-        aria-selected="true"
-        aria-controls="panel-catalog"
-        data-tab="catalog"
-      >
-        Catálogo
-      </button>
-      <button
-        type="button"
-        class="tab"
-        role="tab"
-        id="tab-flow"
-        aria-selected="false"
-        aria-controls="panel-flow"
-        data-tab="flow"
-      >
-        Flujo
-      </button>
-    </nav>
-
     <main>
-      <section
-        id="panel-catalog"
-        class="panel is-active"
-        role="tabpanel"
-        aria-labelledby="tab-catalog"
-      >
-        <div id="catalog-status" class="status-line" aria-live="polite"></div>
-        <div id="catalog-grid" class="catalog-grid"></div>
-      </section>
-
-      <section
-        id="panel-flow"
-        class="panel"
-        role="tabpanel"
-        aria-labelledby="tab-flow"
-        hidden
-      >
-        <div class="flow-shell">
-          <p class="flow-hint" id="flow-hint">
-            Aquí se embebe el flujo externo cuando configures
-            <code>IFRAME_FLOW_URL</code>.
-          </p>
-          <iframe
-            id="flow-frame"
-            class="flow-frame"
-            title="Flujo de onboarding"
-            loading="lazy"
-            referrerpolicy="no-referrer"
-          ></iframe>
-        </div>
-      </section>
+      <div id="catalog-status" class="status-line" aria-live="polite"></div>
+      <div id="catalog-grid" class="catalog-grid"></div>
     </main>
+
+    <footer class="site-footer">
+      <button type="button" id="open-flow" class="flow-entry" hidden>
+        Continuar verificación
+      </button>
+    </footer>
+
+    <dialog id="rent-dialog" class="dialog">
+      <form method="dialog" class="dialog__form" id="rent-form">
+        <header class="dialog__header">
+          <h2 id="rent-title" class="dialog__title">Alquilar</h2>
+          <button type="submit" value="cancel" class="dialog__close" aria-label="Cerrar">
+            ×
+          </button>
+        </header>
+
+        <p id="rent-subtitle" class="dialog__subtitle"></p>
+
+        <label class="days-field" for="rent-days">
+          <span class="days-field__label">Días de alquiler</span>
+          <div class="days-stepper">
+            <button type="button" id="days-minus" class="days-stepper__btn" aria-label="Menos días">
+              −
+            </button>
+            <input
+              id="rent-days"
+              name="days"
+              type="number"
+              min="1"
+              max="30"
+              value="1"
+              inputmode="numeric"
+            />
+            <button type="button" id="days-plus" class="days-stepper__btn" aria-label="Más días">
+              +
+            </button>
+          </div>
+        </label>
+
+        <div class="rent-summary">
+          <div class="rent-summary__row">
+            <span>Precio / día</span>
+            <strong id="rent-per-day">—</strong>
+          </div>
+          <div class="rent-summary__row rent-summary__row--total">
+            <span>Total estimado</span>
+            <strong id="rent-total">—</strong>
+          </div>
+        </div>
+
+        <p class="dialog__note">
+          En WhatsApp confirmarás el alquiler. Aquí solo defines días y costo.
+        </p>
+
+        <div class="dialog__actions">
+          <button type="submit" value="cancel" class="btn btn--ghost">Cancelar</button>
+          <button type="submit" value="confirm" class="btn btn--primary" id="rent-submit">
+            Continuar por WhatsApp
+          </button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="flow-dialog" class="dialog dialog--flow">
+      <div class="dialog__form">
+        <header class="dialog__header">
+          <h2 class="dialog__title">Verificación</h2>
+          <button type="button" class="dialog__close" id="flow-close" aria-label="Cerrar">
+            ×
+          </button>
+        </header>
+        <p class="flow-hint" id="flow-hint">
+          Configura <code>IFRAME_FLOW_URL</code> para embeber el flujo.
+        </p>
+        <iframe
+          id="flow-frame"
+          class="flow-frame"
+          title="Flujo de verificación"
+          loading="lazy"
+          referrerpolicy="no-referrer"
+        ></iframe>
+      </div>
+    </dialog>
 
     <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 

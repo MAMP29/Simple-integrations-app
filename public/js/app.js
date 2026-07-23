@@ -1,10 +1,10 @@
 import { fetchConfig, fetchItems, rentItem } from "./api.js";
 import {
-  initTabs,
+  initRentModal,
+  openRentModal,
   renderCatalog,
-  setButtonLoading,
   setCatalogStatus,
-  setupFlowFrame,
+  setupFlowEntry,
   showToast,
 } from "./ui.js";
 
@@ -12,36 +12,37 @@ async function loadCatalog() {
   setCatalogStatus("Cargando catálogo…");
   try {
     const items = await fetchItems();
-    renderCatalog(items, { onRent: handleRent });
+    renderCatalog(items, { onSelect: openRentModal });
   } catch (err) {
     setCatalogStatus(err.message || "Error al cargar el catálogo", "error");
     showToast("No se pudo cargar el catálogo", "error");
   }
 }
 
-async function handleRent(item, button) {
-  setButtonLoading(button, true);
+async function confirmRent({ item, days }) {
   try {
-    await rentItem(item.id);
-    showToast(`Flujo de WhatsApp iniciado para «${item.name}»`, "ok");
+    await rentItem({ itemId: item.id, days });
+    showToast(
+      `WhatsApp iniciado: ${item.name} · ${days} día${days === 1 ? "" : "s"}. Confirma allí.`,
+      "ok",
+    );
   } catch (err) {
     showToast(err.message || "No se pudo iniciar el alquiler", "error");
-  } finally {
-    setButtonLoading(button, false);
+    throw err;
   }
 }
 
 async function loadConfig() {
   try {
     const config = await fetchConfig();
-    setupFlowFrame(config.iframeFlowUrl || "");
+    setupFlowEntry(config.iframeFlowUrl || "");
   } catch {
-    setupFlowFrame("");
+    setupFlowEntry("");
   }
 }
 
 function boot() {
-  initTabs();
+  initRentModal({ onConfirm: confirmRent });
   loadConfig();
   loadCatalog();
 }
