@@ -9,6 +9,7 @@ const {
   confirmRental,
   cancelRental,
 } = require("./data/rentals");
+const { sendOutboundMessage } = require("./lib/outbound");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -142,55 +143,37 @@ app.post("/api/rent", async (req, res) => {
     });
   }
 
-  const outboundUrl = process.env.WHATSAPP_OUTBOUND_URL;
+  const outboundUrl = process.env.OUTBOUND_API_URL;
   if (!outboundUrl) {
     return res.status(503).json({
-      error: "WhatsApp outbound is not configured",
-      hint: "Set WHATSAPP_OUTBOUND_URL in the environment",
+      error: "Outbound is not configured",
+      hint: "Set OUTBOUND_API_URL, OUTBOUND_API_KEY, OUTBOUND_ID, FLOW_ID, etc.",
       rental_id: rental.id,
     });
   }
 
-  const outboundPayload = {
-    rental_id: rental.id,
+  /** Variables del template WA → se envían como var.<nombre> */
+  const templateVars = {
     borrower_name: BORROWER_NAME,
     item_name: item.name,
     rental_fee,
     borrow_duration: rentalDays,
     duration_label,
+    rental_id: rental.id,
     kycRequired: warrantyOn,
-    extendedWarranty: warrantyOn,
-    ...(phone ? { phone } : {}),
   };
 
   try {
-    const headers = {
-      "Content-Type": "application/json",
-    };
-    if (process.env.WHATSAPP_API_KEY) {
-      headers.Authorization = `Bearer ${process.env.WHATSAPP_API_KEY}`;
-    }
-
-    const upstream = await fetch(outboundUrl, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(outboundPayload),
+    const upstream = await sendOutboundMessage(templateVars, {
+      phoneNumber: phone || undefined,
     });
-
-    const text = await upstream.text();
-    let upstreamBody = text;
-    try {
-      upstreamBody = JSON.parse(text);
-    } catch {
-      /* leave as text */
-    }
 
     if (!upstream.ok) {
       return res.status(502).json({
-        error: "WhatsApp outbound request failed",
+        error: "Outbound request failed",
         status: upstream.status,
         rental_id: rental.id,
-        upstream: upstreamBody,
+        upstream: upstream.body,
       });
     }
 
@@ -198,12 +181,19 @@ app.post("/api/rent", async (req, res) => {
       ok: true,
       ...apiResult,
       message: "WhatsApp flow started",
-      upstream: upstreamBody,
+      upstream: upstream.body,
     });
   } catch (err) {
+    if (err.status === 503) {
+      return res.status(503).json({
+        error: err.message,
+        missing: err.missing,
+        rental_id: rental.id,
+      });
+    }
     console.error("rent/outbound error:", err);
     return res.status(502).json({
-      error: "Failed to reach WhatsApp outbound",
+      error: "Failed to reach outbound API",
       detail: err.message,
       rental_id: rental.id,
     });
@@ -242,7 +232,7 @@ app.post("/api/rentals/:id/cancel", (req, res) => {
 
 /**
  * Proxy / punto de entrada para validación de identidad.
- * Placeholder — cablear Truora u otra herramienta después.
+ * Placeholder — cablear la herramienta de identidad después.
  */
 app.post("/api/identity/verify", async (req, res) => {
   res.status(501).json({
