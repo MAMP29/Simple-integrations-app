@@ -5,14 +5,17 @@ const { listItems, getItemById } = require("./data/items");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const BORROWER_NAME = process.env.BORROWER_NAME || "Ana Rivera";
+const WARRANTY_FEE_PER_DAY = 6;
 
 app.use(express.json());
 app.use(express.static("public"));
 
-/** Config pública para el frontend (iframe, etc.). */
+/** Config pública para el frontend (iframe, prestatario demo, etc.). */
 app.get("/api/config", (_req, res) => {
   res.json({
     iframeFlowUrl: process.env.IFRAME_FLOW_URL || "",
+    borrower_name: BORROWER_NAME,
   });
 });
 
@@ -60,32 +63,42 @@ app.post("/api/rent", async (req, res) => {
   }
 
   const warrantyOn = Boolean(extendedWarranty);
-  const warrantyFeePerDay = 6;
-  const warrantyTotal = warrantyOn ? warrantyFeePerDay * rentalDays : 0;
+  const warrantyTotal = warrantyOn ? WARRANTY_FEE_PER_DAY * rentalDays : 0;
   const basePrice = item.pricePerDay * rentalDays;
-  const totalPrice = basePrice + warrantyTotal;
+  const rental_fee = basePrice + warrantyTotal;
+  const duration_label = rentalDays === 1 ? "día" : "días";
 
-  const basePayload = {
-    itemId: item.id,
-    itemName: item.name,
-    pricePerDay: item.pricePerDay,
-    days: rentalDays,
-    basePrice,
-    warrantyFeePerDay: warrantyOn ? warrantyFeePerDay : 0,
-    warrantyTotal,
-    totalPrice,
-    currency: "USD",
+  /** Respuesta interna de la API (web + echo). */
+  const apiResult = {
     channel,
     extendedWarranty: warrantyOn,
-    /** Controlador KYC para el flujo de WhatsApp / validación. */
     kycRequired: warrantyOn,
+    borrower_name: BORROWER_NAME,
+    item_name: item.name,
+    rental_fee,
+    borrow_duration: rentalDays,
+    duration_label,
+    currency: "USD",
+    ...(phone ? { phone } : {}),
+  };
+
+  /** Variables del template outbound de WhatsApp. */
+  const outboundPayload = {
+    borrower_name: BORROWER_NAME,
+    item_name: item.name,
+    rental_fee,
+    borrow_duration: rentalDays,
+    duration_label,
+    /** Controlador KYC en el flujo WA. */
+    kycRequired: warrantyOn,
+    extendedWarranty: warrantyOn,
     ...(phone ? { phone } : {}),
   };
 
   if (channel === "web") {
     return res.status(200).json({
       ok: true,
-      ...basePayload,
+      ...apiResult,
       message: "Web validation flow started",
     });
   }
@@ -109,7 +122,7 @@ app.post("/api/rent", async (req, res) => {
     const upstream = await fetch(outboundUrl, {
       method: "POST",
       headers,
-      body: JSON.stringify(basePayload),
+      body: JSON.stringify(outboundPayload),
     });
 
     const text = await upstream.text();
@@ -130,7 +143,7 @@ app.post("/api/rent", async (req, res) => {
 
     return res.status(200).json({
       ok: true,
-      ...basePayload,
+      ...apiResult,
       message: "WhatsApp flow started",
       upstream: upstreamBody,
     });

@@ -259,6 +259,13 @@ export function setupFlowEntry(url) {
   closeBtn?.addEventListener("click", () => dialog.close());
 }
 
+export function setBorrowerLabel(name) {
+  const el = document.getElementById("borrower-label");
+  if (!el || !name) return;
+  el.hidden = false;
+  el.innerHTML = `Sesión de <strong>${escapeHtml(name)}</strong>`;
+}
+
 export function openWebFlow() {
   openFlowFn?.();
 }

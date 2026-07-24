@@ -4,6 +4,7 @@ import {
   openRentModal,
   openWebFlow,
   renderCatalog,
+  setBorrowerLabel,
   setCatalogStatus,
   setupFlowEntry,
   showToast,
@@ -47,6 +48,7 @@ async function loadConfig() {
   try {
     const config = await fetchConfig();
     setupFlowEntry(config.iframeFlowUrl || "");
+    setBorrowerLabel(config.borrower_name || "");
   } catch {
     setupFlowEntry("");
   }
