@@ -314,6 +314,173 @@ main {
   background: rgba(255, 255, 255, 0.55);
 }
 
+.btn--secondary {
+  background: rgba(255, 255, 255, 0.85);
+  color: var(--ink);
+  border: 1px solid var(--line);
+}
+
+.btn--secondary:hover:not(:disabled) {
+  background: #fff;
+  border-color: rgba(13, 110, 95, 0.35);
+}
+
+.btn--secondary.is-loading::after {
+  border-color: rgba(20, 33, 43, 0.2);
+  border-top-color: var(--ink);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.warranty {
+  --warranty-gold: #b8893a;
+  --warranty-gold-soft: #e8d5a8;
+  position: relative;
+  overflow: hidden;
+  padding: 1rem 1.05rem 1.05rem;
+  border-radius: 0.9rem;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.62);
+  transition:
+    border-color 0.35s var(--ease),
+    background 0.35s var(--ease),
+    box-shadow 0.35s var(--ease),
+    transform 0.35s var(--ease);
+}
+
+.warranty::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  background:
+    radial-gradient(ellipse 80% 70% at 100% 0%, rgba(232, 213, 168, 0.55), transparent 55%),
+    linear-gradient(145deg, rgba(255, 250, 240, 0.9), rgba(255, 255, 255, 0.35));
+  transition: opacity 0.4s var(--ease);
+  pointer-events: none;
+}
+
+.warranty.is-on {
+  border-color: rgba(184, 137, 58, 0.45);
+  box-shadow:
+    0 0 0 1px rgba(232, 213, 168, 0.35),
+    0 14px 36px rgba(184, 137, 58, 0.14);
+  transform: translateY(-1px);
+}
+
+.warranty.is-on::before {
+  opacity: 1;
+}
+
+.warranty__top {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.warranty__eyebrow {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  transition: color 0.3s var(--ease);
+}
+
+.warranty.is-on .warranty__eyebrow {
+  color: var(--warranty-gold);
+}
+
+.warranty__title {
+  margin: 0.15rem 0 0;
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.warranty__desc {
+  position: relative;
+  z-index: 1;
+  margin: 0.7rem 0 0;
+  color: var(--ink-soft);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.switch {
+  position: relative;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.switch input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.switch__track {
+  display: block;
+  position: relative;
+  width: 3.1rem;
+  height: 1.75rem;
+  border-radius: 999px;
+  background: rgba(20, 33, 43, 0.14);
+  border: 1px solid rgba(20, 33, 43, 0.08);
+  transition:
+    background 0.3s var(--ease),
+    border-color 0.3s var(--ease),
+    box-shadow 0.3s var(--ease);
+}
+
+.switch__thumb {
+  position: absolute;
+  top: 0.18rem;
+  left: 0.18rem;
+  width: 1.3rem;
+  height: 1.3rem;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(20, 33, 43, 0.18);
+  transition:
+    transform 0.35s var(--ease),
+    box-shadow 0.35s var(--ease),
+    background 0.35s var(--ease);
+}
+
+.switch input:checked + .switch__track {
+  background: linear-gradient(135deg, #c9a24a, #8f6a24);
+  border-color: transparent;
+  box-shadow: 0 0 18px rgba(201, 162, 74, 0.45);
+}
+
+.switch input:checked + .switch__track .switch__thumb {
+  transform: translateX(1.3rem);
+  background: #fffdf8;
+  box-shadow: 0 2px 10px rgba(143, 106, 36, 0.35);
+}
+
+.switch input:focus-visible + .switch__track {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
 .site-footer {
   max-width: 1100px;
   width: 100%;
@@ -339,7 +506,7 @@ main {
 }
 
 .dialog {
-  width: min(92vw, 420px);
+  width: min(92vw, 460px);
   padding: 0;
   border: 1px solid var(--line);
   border-radius: calc(var(--radius) + 0.15rem);
@@ -501,6 +668,23 @@ main {
   margin-top: 0.25rem;
 }
 
+.dialog__actions--split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.6rem;
+}
+
+.dialog__actions--split .dialog__cancel {
+  grid-column: 1 / -1;
+  justify-self: start;
+  width: auto;
+}
+
+.dialog__actions--split .btn--secondary,
+.dialog__actions--split .btn--primary {
+  width: 100%;
+}
+
 .flow-hint {
   margin: 0;
   color: var(--ink-soft);
@@ -567,11 +751,13 @@ main {
     align-items: flex-start;
   }
 
-  .dialog__actions {
-    flex-direction: column-reverse;
+  .dialog__actions--split {
+    grid-template-columns: 1fr;
   }
 
-  .dialog__actions .btn {
+  .dialog__actions--split .dialog__cancel {
+    justify-self: stretch;
     width: 100%;
+    order: 3;
   }
 }

@@ -2,6 +2,7 @@ import { fetchConfig, fetchItems, rentItem } from "./api.js";
 import {
   initRentModal,
   openRentModal,
+  openWebFlow,
   renderCatalog,
   setCatalogStatus,
   setupFlowEntry,
@@ -19,11 +20,21 @@ async function loadCatalog() {
   }
 }
 
-async function confirmRent({ item, days }) {
+async function confirmRent({ item, days, channel, extendedWarranty }) {
   try {
-    await rentItem({ itemId: item.id, days });
+    await rentItem({ itemId: item.id, days, channel, extendedWarranty });
+
+    if (channel === "web") {
+      showToast(
+        `Validación web lista: ${item.name} · ${days} día${days === 1 ? "" : "s"}.`,
+        "ok",
+      );
+      openWebFlow();
+      return;
+    }
+
     showToast(
-      `WhatsApp iniciado: ${item.name} · ${days} día${days === 1 ? "" : "s"}. Confirma allí.`,
+      `Canal WhatsApp iniciado: ${item.name} · ${days} día${days === 1 ? "" : "s"}.`,
       "ok",
     );
   } catch (err) {

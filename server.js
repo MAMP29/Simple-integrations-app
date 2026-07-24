@@ -31,15 +31,19 @@ app.get("/api/items/:id", (req, res) => {
 });
 
 /**
- * Inicia el flujo de alquiler:
- * 1) Valida el objeto
- * 2) Llama al outbound WhatsApp de la empresa
+ * Inicia el flujo de alquiler por canal:
+ * - whatsapp → outbound (KYC si garantía extendida)
+ * - web → validación en sitio (iframe / identity)
  */
 app.post("/api/rent", async (req, res) => {
-  const { itemId, phone, days } = req.body ?? {};
+  const { itemId, phone, days, channel, extendedWarranty } = req.body ?? {};
 
   if (!itemId) {
     return res.status(400).json({ error: "itemId is required" });
+  }
+
+  if (channel !== "web" && channel !== "whatsapp") {
+    return res.status(400).json({ error: "channel must be 'web' or 'whatsapp'" });
   }
 
   const rentalDays = Number(days);
@@ -55,6 +59,37 @@ app.post("/api/rent", async (req, res) => {
     return res.status(409).json({ error: "Item is not available" });
   }
 
+  const warrantyOn = Boolean(extendedWarranty);
+  const warrantyFeePerDay = 6;
+  const warrantyTotal = warrantyOn ? warrantyFeePerDay * rentalDays : 0;
+  const basePrice = item.pricePerDay * rentalDays;
+  const totalPrice = basePrice + warrantyTotal;
+
+  const basePayload = {
+    itemId: item.id,
+    itemName: item.name,
+    pricePerDay: item.pricePerDay,
+    days: rentalDays,
+    basePrice,
+    warrantyFeePerDay: warrantyOn ? warrantyFeePerDay : 0,
+    warrantyTotal,
+    totalPrice,
+    currency: "USD",
+    channel,
+    extendedWarranty: warrantyOn,
+    /** Controlador KYC para el flujo de WhatsApp / validación. */
+    kycRequired: warrantyOn,
+    ...(phone ? { phone } : {}),
+  };
+
+  if (channel === "web") {
+    return res.status(200).json({
+      ok: true,
+      ...basePayload,
+      message: "Web validation flow started",
+    });
+  }
+
   const outboundUrl = process.env.WHATSAPP_OUTBOUND_URL;
   if (!outboundUrl) {
     return res.status(503).json({
@@ -63,19 +98,7 @@ app.post("/api/rent", async (req, res) => {
     });
   }
 
-  const totalPrice = item.pricePerDay * rentalDays;
-
   try {
-    const payload = {
-      itemId: item.id,
-      itemName: item.name,
-      pricePerDay: item.pricePerDay,
-      days: rentalDays,
-      totalPrice,
-      currency: "USD",
-      ...(phone ? { phone } : {}),
-    };
-
     const headers = {
       "Content-Type": "application/json",
     };
@@ -86,7 +109,7 @@ app.post("/api/rent", async (req, res) => {
     const upstream = await fetch(outboundUrl, {
       method: "POST",
       headers,
-      body: JSON.stringify(payload),
+      body: JSON.stringify(basePayload),
     });
 
     const text = await upstream.text();
@@ -107,10 +130,7 @@ app.post("/api/rent", async (req, res) => {
 
     return res.status(200).json({
       ok: true,
-      itemId: item.id,
-      days: rentalDays,
-      totalPrice,
-      currency: "USD",
+      ...basePayload,
       message: "WhatsApp flow started",
       upstream: upstreamBody,
     });

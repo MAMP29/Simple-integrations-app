@@ -17,7 +17,7 @@
 
     <header class="site-header">
       <p class="brand">Kora</p>
-      <p class="tagline">Equipo listo para usar. Elige días y sigue por WhatsApp.</p>
+      <p class="tagline">Equipo listo para usar. Elige días y completa tu reserva.</p>
     </header>
 
     <main>
@@ -63,10 +63,38 @@
           </div>
         </label>
 
+        <div class="warranty" id="warranty-card">
+          <div class="warranty__top">
+            <div class="warranty__copy">
+              <p class="warranty__eyebrow">Protección premium</p>
+              <p class="warranty__title">Garantía extendida</p>
+            </div>
+            <label class="switch" for="rent-warranty">
+              <input
+                type="checkbox"
+                id="rent-warranty"
+                name="extendedWarranty"
+              />
+              <span class="switch__track" aria-hidden="true">
+                <span class="switch__thumb"></span>
+              </span>
+              <span class="visually-hidden">Activar garantía extendida</span>
+            </label>
+          </div>
+          <p class="warranty__desc">
+            Cubre daños accidentales y activa la verificación de identidad en el
+            canal que elijas. Ideal si el equipo sale de casa o viaja contigo.
+          </p>
+        </div>
+
         <div class="rent-summary">
           <div class="rent-summary__row">
             <span>Precio / día</span>
             <strong id="rent-per-day">—</strong>
+          </div>
+          <div class="rent-summary__row" id="rent-warranty-row" hidden>
+            <span>Garantía extendida</span>
+            <strong id="rent-warranty-fee">—</strong>
           </div>
           <div class="rent-summary__row rent-summary__row--total">
             <span>Total estimado</span>
@@ -75,13 +103,19 @@
         </div>
 
         <p class="dialog__note">
-          En WhatsApp confirmarás el alquiler. Aquí solo defines días y costo.
+          Elige un canal para continuar. Cada uno aplica su propia validación;
+          la reserva no se comparte entre ambos.
         </p>
 
-        <div class="dialog__actions">
-          <button type="submit" value="cancel" class="btn btn--ghost">Cancelar</button>
-          <button type="submit" value="confirm" class="btn btn--primary" id="rent-submit">
-            Continuar por WhatsApp
+        <div class="dialog__actions dialog__actions--split">
+          <button type="submit" value="cancel" class="btn btn--ghost dialog__cancel">
+            Cancelar
+          </button>
+          <button type="submit" value="web" class="btn btn--secondary" id="rent-web">
+            Continuar en web
+          </button>
+          <button type="submit" value="whatsapp" class="btn btn--primary" id="rent-whatsapp">
+            Continuar en WhatsApp
           </button>
         </div>
       </form>

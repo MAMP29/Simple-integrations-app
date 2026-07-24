@@ -2,6 +2,8 @@
 
 const MIN_DAYS = 1;
 const MAX_DAYS = 30;
+/** Cargo diario de la garantía extendida (USD). */
+export const WARRANTY_FEE_PER_DAY = 6;
 
 const toastEl = () => document.getElementById("toast");
 const gridEl = () => document.getElementById("catalog-grid");
@@ -12,6 +14,7 @@ const flowDialog = () => document.getElementById("flow-dialog");
 let toastTimer;
 let selectedItem = null;
 let rentConfirmHandler = null;
+let openFlowFn = null;
 
 export function formatPrice(value) {
   return new Intl.NumberFormat("en-US", {
@@ -107,6 +110,8 @@ export function initRentModal({ onConfirm }) {
   const daysInput = document.getElementById("rent-days");
   const minus = document.getElementById("days-minus");
   const plus = document.getElementById("days-plus");
+  const warranty = document.getElementById("rent-warranty");
+  const warrantyCard = document.getElementById("warranty-card");
 
   minus?.addEventListener("click", () => {
     setDays(Number(daysInput.value) - 1);
@@ -120,27 +125,40 @@ export function initRentModal({ onConfirm }) {
     setDays(Number(daysInput.value) || MIN_DAYS);
   });
 
+  warranty?.addEventListener("change", () => {
+    warrantyCard?.classList.toggle("is-on", Boolean(warranty.checked));
+    updateRentSummary();
+  });
+
   form?.addEventListener("submit", async (event) => {
     event.preventDefault();
     const submitter = event.submitter;
     const value = submitter?.value || "cancel";
 
-    if (value !== "confirm" || !selectedItem) {
+    if ((value !== "web" && value !== "whatsapp") || !selectedItem) {
       dialog.close();
       return;
     }
 
     const days = clampDays(Number(daysInput.value));
-    const submitBtn = document.getElementById("rent-submit");
+    const extendedWarranty = Boolean(warranty?.checked);
+    const submitBtn = submitter;
     setButtonLoading(submitBtn, true);
+    setChannelButtonsDisabled(true);
 
     try {
-      await rentConfirmHandler?.({ item: selectedItem, days });
+      await rentConfirmHandler?.({
+        item: selectedItem,
+        days,
+        channel: value,
+        extendedWarranty,
+      });
       dialog.close();
     } catch {
       /* el caller muestra el toast; el modal permanece abierto */
     } finally {
       setButtonLoading(submitBtn, false);
+      setChannelButtonsDisabled(false);
     }
   });
 }
@@ -150,11 +168,16 @@ export function openRentModal(item) {
   const dialog = rentDialog();
   const title = document.getElementById("rent-title");
   const subtitle = document.getElementById("rent-subtitle");
+  const warranty = document.getElementById("rent-warranty");
+  const warrantyCard = document.getElementById("warranty-card");
 
   if (title) title.textContent = item.name;
   if (subtitle) {
-    subtitle.textContent = "Elige los días. El total se confirma después en WhatsApp.";
+    subtitle.textContent = "Define los días y el canal para completar la validación.";
   }
+
+  if (warranty) warranty.checked = false;
+  warrantyCard?.classList.remove("is-on");
 
   setDays(1);
   updateRentSummary();
@@ -171,15 +194,33 @@ function setDays(value) {
 function updateRentSummary() {
   if (!selectedItem) return;
   const days = clampDays(Number(document.getElementById("rent-days")?.value));
+  const warrantyOn = Boolean(document.getElementById("rent-warranty")?.checked);
+  const base = selectedItem.pricePerDay * days;
+  const warrantyTotal = warrantyOn ? WARRANTY_FEE_PER_DAY * days : 0;
+
   const perDay = document.getElementById("rent-per-day");
   const total = document.getElementById("rent-total");
+  const warrantyRow = document.getElementById("rent-warranty-row");
+  const warrantyFee = document.getElementById("rent-warranty-fee");
+
   if (perDay) perDay.textContent = formatPrice(selectedItem.pricePerDay);
-  if (total) total.textContent = formatPrice(selectedItem.pricePerDay * days);
+  if (warrantyRow) warrantyRow.hidden = !warrantyOn;
+  if (warrantyFee) {
+    warrantyFee.textContent = `${formatPrice(warrantyTotal)} (${formatPrice(WARRANTY_FEE_PER_DAY)}/día)`;
+  }
+  if (total) total.textContent = formatPrice(base + warrantyTotal);
 }
 
 function clampDays(value) {
   if (!Number.isFinite(value)) return MIN_DAYS;
   return Math.min(MAX_DAYS, Math.max(MIN_DAYS, Math.round(value)));
+}
+
+function setChannelButtonsDisabled(disabled) {
+  const web = document.getElementById("rent-web");
+  const wa = document.getElementById("rent-whatsapp");
+  if (web) web.disabled = disabled;
+  if (wa) wa.disabled = disabled;
 }
 
 export function setupFlowEntry(url) {
@@ -190,6 +231,17 @@ export function setupFlowEntry(url) {
   const closeBtn = document.getElementById("flow-close");
 
   if (!entry || !dialog) return;
+
+  const openFlow = () => {
+    if (!url) {
+      showToast("El flujo web aún no está configurado", "error");
+      return;
+    }
+    if (frame && frame.src !== url) frame.src = url;
+    dialog.showModal();
+  };
+
+  openFlowFn = openFlow;
 
   if (!url) {
     entry.hidden = true;
@@ -203,12 +255,12 @@ export function setupFlowEntry(url) {
   if (hint) hint.hidden = true;
   frame?.classList.remove("is-empty");
 
-  entry.onclick = () => {
-    if (frame && frame.src !== url) frame.src = url;
-    dialog.showModal();
-  };
-
+  entry.onclick = openFlow;
   closeBtn?.addEventListener("click", () => dialog.close());
+}
+
+export function openWebFlow() {
+  openFlowFn?.();
 }
 
 export function setButtonLoading(button, loading) {
