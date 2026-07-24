@@ -1,4 +1,7 @@
-/** Catálogo en memoria — suficiente para el onboarding. */
+/** Catálogo en memoria — estados: available | in_process | rented */
+
+const STATUSES = new Set(["available", "in_process", "rented"]);
+
 const items = [
   {
     id: "cam-001",
@@ -7,7 +10,7 @@ const items = [
     pricePerDay: 25,
     imageUrl:
       "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=800&q=80&auto=format&fit=crop",
-    available: true,
+    status: "available",
   },
   {
     id: "drn-002",
@@ -16,7 +19,7 @@ const items = [
     pricePerDay: 45,
     imageUrl:
       "https://images.unsplash.com/photo-1473968512647-3e447244af8f?w=800&q=80&auto=format&fit=crop",
-    available: true,
+    status: "available",
   },
   {
     id: "prj-003",
@@ -25,7 +28,7 @@ const items = [
     pricePerDay: 18,
     imageUrl:
       "https://images.unsplash.com/photo-1478720568477-152d9b164e26?w=800&q=80&auto=format&fit=crop",
-    available: true,
+    status: "available",
   },
   {
     id: "spk-004",
@@ -34,23 +37,48 @@ const items = [
     pricePerDay: 12,
     imageUrl:
       "https://images.unsplash.com/photo-1608043152269-423dbba4e7e1?w=800&q=80&auto=format&fit=crop",
-    available: true,
+    status: "available",
   },
 ];
 
+function toPublic(item) {
+  return {
+    id: item.id,
+    name: item.name,
+    description: item.description,
+    pricePerDay: item.pricePerDay,
+    imageUrl: item.imageUrl,
+    status: item.status,
+    available: item.status === "available",
+  };
+}
+
 function listItems() {
-  return items.map(({ id, name, description, pricePerDay, imageUrl, available }) => ({
-    id,
-    name,
-    description,
-    pricePerDay,
-    imageUrl,
-    available,
-  }));
+  return items.map(toPublic);
 }
 
 function getItemById(id) {
-  return items.find((item) => item.id === id) ?? null;
+  const item = items.find((entry) => entry.id === id);
+  return item ? toPublic(item) : null;
 }
 
-module.exports = { listItems, getItemById };
+function getItemRecord(id) {
+  return items.find((entry) => entry.id === id) ?? null;
+}
+
+function setItemStatus(id, status) {
+  if (!STATUSES.has(status)) {
+    throw new Error(`Invalid item status: ${status}`);
+  }
+  const item = getItemRecord(id);
+  if (!item) return null;
+  item.status = status;
+  return toPublic(item);
+}
+
+module.exports = {
+  listItems,
+  getItemById,
+  getItemRecord,
+  setItemStatus,
+};

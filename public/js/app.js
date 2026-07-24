@@ -1,4 +1,10 @@
-import { fetchConfig, fetchItems, rentItem } from "./api.js";
+import {
+  cancelRental,
+  confirmRental,
+  fetchConfig,
+  fetchItems,
+  rentItem,
+} from "./api.js";
 import {
   initRentModal,
   openRentModal,
@@ -9,6 +15,9 @@ import {
   setupFlowEntry,
   showToast,
 } from "./ui.js";
+
+/** Rental web en verificación (garantía). */
+let pendingWebRentalId = null;
 
 async function loadCatalog() {
   setCatalogStatus("Cargando catálogo…");
@@ -23,34 +32,75 @@ async function loadCatalog() {
 
 async function confirmRent({ item, days, channel, extendedWarranty }) {
   try {
-    await rentItem({ itemId: item.id, days, channel, extendedWarranty });
+    const result = await rentItem({
+      itemId: item.id,
+      days,
+      channel,
+      extendedWarranty,
+    });
 
     if (channel === "web") {
-      showToast(
-        `Validación web lista: ${item.name} · ${days} día${days === 1 ? "" : "s"}.`,
-        "ok",
-      );
-      openWebFlow();
+      if (result.rental_status === "rented") {
+        showToast(`Prestado: ${item.name}`, "ok");
+        await loadCatalog();
+        return;
+      }
+
+      pendingWebRentalId = result.rental_id;
+      showToast(`En proceso: completa la verificación de ${item.name}`, "ok");
+      await loadCatalog();
+      openWebFlow({ showActions: true });
       return;
     }
 
     showToast(
-      `Canal WhatsApp iniciado: ${item.name} · ${days} día${days === 1 ? "" : "s"}.`,
+      `WhatsApp iniciado (${result.rental_id}): confirma allí la solicitud.`,
       "ok",
     );
+    await loadCatalog();
   } catch (err) {
     showToast(err.message || "No se pudo iniciar el alquiler", "error");
     throw err;
   }
 }
 
+async function handleWebVerifyOk() {
+  if (!pendingWebRentalId) return;
+  try {
+    await confirmRental(pendingWebRentalId);
+    showToast("Validación OK — equipo prestado", "ok");
+    pendingWebRentalId = null;
+    await loadCatalog();
+  } catch (err) {
+    showToast(err.message || "No se pudo confirmar", "error");
+  }
+}
+
+async function handleWebVerifyFail() {
+  if (!pendingWebRentalId) return;
+  try {
+    await cancelRental(pendingWebRentalId);
+    showToast("Validación fallida — reserva liberada", "error");
+    pendingWebRentalId = null;
+    await loadCatalog();
+  } catch (err) {
+    showToast(err.message || "No se pudo cancelar", "error");
+  }
+}
+
 async function loadConfig() {
   try {
     const config = await fetchConfig();
-    setupFlowEntry(config.iframeFlowUrl || "");
+    setupFlowEntry(config.iframeFlowUrl || "", {
+      onVerifyOk: handleWebVerifyOk,
+      onVerifyFail: handleWebVerifyFail,
+    });
     setBorrowerLabel(config.borrower_name || "");
   } catch {
-    setupFlowEntry("");
+    setupFlowEntry("", {
+      onVerifyOk: handleWebVerifyOk,
+      onVerifyFail: handleWebVerifyFail,
+    });
   }
 }
 

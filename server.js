@@ -2,6 +2,13 @@ require("dotenv").config();
 
 const express = require("express");
 const { listItems, getItemById } = require("./data/items");
+const {
+  createRental,
+  getRental,
+  reserveRental,
+  confirmRental,
+  cancelRental,
+} = require("./data/rentals");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -11,7 +18,12 @@ const WARRANTY_FEE_PER_DAY = 6;
 app.use(express.json());
 app.use(express.static("public"));
 
-/** Config pública para el frontend (iframe, prestatario demo, etc.). */
+function sendRentalError(res, err) {
+  const status = err.status || 500;
+  return res.status(status).json({ error: err.message });
+}
+
+/** Config pública para el frontend. */
 app.get("/api/config", (_req, res) => {
   res.json({
     iframeFlowUrl: process.env.IFRAME_FLOW_URL || "",
@@ -33,10 +45,19 @@ app.get("/api/items/:id", (req, res) => {
   res.json({ item });
 });
 
+/** Detalle de una reserva. */
+app.get("/api/rentals/:id", (req, res) => {
+  const rental = getRental(req.params.id);
+  if (!rental) {
+    return res.status(404).json({ error: "Rental not found" });
+  }
+  res.json({ rental });
+});
+
 /**
- * Inicia el flujo de alquiler por canal:
- * - whatsapp → outbound (KYC si garantía extendida)
- * - web → validación en sitio (iframe / identity)
+ * Inicia alquiler:
+ * - whatsapp → crea rental pending + outbound (hold al "Sí" vía /reserve)
+ * - web → reserve inmediato; sin garantía confirma; con garantía deja in_process
  */
 app.post("/api/rent", async (req, res) => {
   const { itemId, phone, days, channel, extendedWarranty } = req.body ?? {};
@@ -68,8 +89,25 @@ app.post("/api/rent", async (req, res) => {
   const rental_fee = basePrice + warrantyTotal;
   const duration_label = rentalDays === 1 ? "día" : "días";
 
-  /** Respuesta interna de la API (web + echo). */
+  let rental;
+  try {
+    rental = createRental({
+      itemId,
+      channel,
+      borrow_duration: rentalDays,
+      rental_fee,
+      duration_label,
+      borrower_name: BORROWER_NAME,
+      item_name: item.name,
+      extendedWarranty: warrantyOn,
+      phone,
+    });
+  } catch (err) {
+    return sendRentalError(res, err);
+  }
+
   const apiResult = {
+    rental_id: rental.id,
     channel,
     extendedWarranty: warrantyOn,
     kycRequired: warrantyOn,
@@ -79,27 +117,28 @@ app.post("/api/rent", async (req, res) => {
     borrow_duration: rentalDays,
     duration_label,
     currency: "USD",
-    ...(phone ? { phone } : {}),
-  };
-
-  /** Variables del template outbound de WhatsApp. */
-  const outboundPayload = {
-    borrower_name: BORROWER_NAME,
-    item_name: item.name,
-    rental_fee,
-    borrow_duration: rentalDays,
-    duration_label,
-    /** Controlador KYC en el flujo WA. */
-    kycRequired: warrantyOn,
-    extendedWarranty: warrantyOn,
+    rental_status: rental.status,
     ...(phone ? { phone } : {}),
   };
 
   if (channel === "web") {
+    try {
+      rental = reserveRental(rental.id);
+      if (!warrantyOn) {
+        rental = confirmRental(rental.id);
+      }
+    } catch (err) {
+      return sendRentalError(res, err);
+    }
+
     return res.status(200).json({
       ok: true,
       ...apiResult,
-      message: "Web validation flow started",
+      rental_status: rental.status,
+      item: rental.item,
+      message: warrantyOn
+        ? "Web rental reserved — complete verification"
+        : "Web rental confirmed",
     });
   }
 
@@ -108,8 +147,21 @@ app.post("/api/rent", async (req, res) => {
     return res.status(503).json({
       error: "WhatsApp outbound is not configured",
       hint: "Set WHATSAPP_OUTBOUND_URL in the environment",
+      rental_id: rental.id,
     });
   }
+
+  const outboundPayload = {
+    rental_id: rental.id,
+    borrower_name: BORROWER_NAME,
+    item_name: item.name,
+    rental_fee,
+    borrow_duration: rentalDays,
+    duration_label,
+    kycRequired: warrantyOn,
+    extendedWarranty: warrantyOn,
+    ...(phone ? { phone } : {}),
+  };
 
   try {
     const headers = {
@@ -137,6 +189,7 @@ app.post("/api/rent", async (req, res) => {
       return res.status(502).json({
         error: "WhatsApp outbound request failed",
         status: upstream.status,
+        rental_id: rental.id,
         upstream: upstreamBody,
       });
     }
@@ -152,16 +205,46 @@ app.post("/api/rent", async (req, res) => {
     return res.status(502).json({
       error: "Failed to reach WhatsApp outbound",
       detail: err.message,
+      rental_id: rental.id,
     });
+  }
+});
+
+/** Integración WA: Sí → poner en proceso. */
+app.post("/api/rentals/:id/reserve", (req, res) => {
+  try {
+    const rental = reserveRental(req.params.id);
+    return res.json({ ok: true, rental, item: rental.item });
+  } catch (err) {
+    return sendRentalError(res, err);
+  }
+});
+
+/** Integración WA / web: confirmar préstamo. */
+app.post("/api/rentals/:id/confirm", (req, res) => {
+  try {
+    const rental = confirmRental(req.params.id);
+    return res.json({ ok: true, rental, item: rental.item });
+  } catch (err) {
+    return sendRentalError(res, err);
+  }
+});
+
+/** Integración WA / web: cancelar y liberar. */
+app.post("/api/rentals/:id/cancel", (req, res) => {
+  try {
+    const rental = cancelRental(req.params.id);
+    return res.json({ ok: true, rental, item: rental.item });
+  } catch (err) {
+    return sendRentalError(res, err);
   }
 });
 
 /**
  * Proxy / punto de entrada para validación de identidad.
- * La integración concreta se cablea cuando tengas la herramienta.
+ * Placeholder — cablear Truora u otra herramienta después.
  */
 app.post("/api/identity/verify", async (req, res) => {
-  // Placeholder: el frontend o el iframe del flujo llamarán aquí.
   res.status(501).json({
     error: "Identity verification not wired yet",
     received: req.body ?? {},

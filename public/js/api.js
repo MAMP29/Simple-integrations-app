@@ -1,15 +1,26 @@
 /** Cliente HTTP hacia la API del propio servidor. */
 
+async function readJson(res) {
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const message =
+      data.error || data.hint || `Error de API (${res.status})`;
+    const err = new Error(message);
+    err.status = res.status;
+    err.payload = data;
+    throw err;
+  }
+  return data;
+}
+
 export async function fetchConfig() {
   const res = await fetch("/api/config");
-  if (!res.ok) throw new Error("No se pudo cargar la configuración");
-  return res.json();
+  return readJson(res);
 }
 
 export async function fetchItems() {
   const res = await fetch("/api/items");
-  if (!res.ok) throw new Error("No se pudo cargar el catálogo");
-  const data = await res.json();
+  const data = await readJson(res);
   return data.items ?? [];
 }
 
@@ -19,15 +30,20 @@ export async function rentItem({ itemId, days, channel, extendedWarranty }) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ itemId, days, channel, extendedWarranty }),
   });
+  return readJson(res);
+}
 
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    const message =
-      data.error || data.hint || `Error al iniciar el alquiler (${res.status})`;
-    const err = new Error(message);
-    err.status = res.status;
-    err.payload = data;
-    throw err;
-  }
-  return data;
+export async function reserveRental(rentalId) {
+  const res = await fetch(`/api/rentals/${rentalId}/reserve`, { method: "POST" });
+  return readJson(res);
+}
+
+export async function confirmRental(rentalId) {
+  const res = await fetch(`/api/rentals/${rentalId}/confirm`, { method: "POST" });
+  return readJson(res);
+}
+
+export async function cancelRental(rentalId) {
+  const res = await fetch(`/api/rentals/${rentalId}/cancel`, { method: "POST" });
+  return readJson(res);
 }

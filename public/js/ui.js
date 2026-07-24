@@ -61,15 +61,21 @@ export function renderCatalog(items, { onSelect }) {
     return;
   }
 
-  setCatalogStatus(`${items.length} objetos listos para alquilar.`);
+  const availableCount = items.filter((item) => item.status === "available").length;
+  setCatalogStatus(
+    `${availableCount} de ${items.length} disponibles · el resto en proceso o prestados.`,
+  );
 
   items.forEach((item, index) => {
     const card = document.createElement("article");
-    card.className = "item";
+    const status = item.status || (item.available ? "available" : "rented");
+    const canRent = status === "available";
+
+    card.className = `item${canRent ? "" : " is-locked"}`;
     card.style.animationDelay = `${0.05 + index * 0.06}s`;
     card.dataset.itemId = item.id;
 
-    const available = Boolean(item.available);
+    const stateMeta = statusLabel(status);
 
     card.innerHTML = `
       <div class="item__media">
@@ -80,26 +86,38 @@ export function renderCatalog(items, { onSelect }) {
         <p class="item__desc">${escapeHtml(item.description)}</p>
         <div class="item__meta">
           <p class="item__price">${formatPrice(item.pricePerDay)} <span>/ día</span></p>
-          <p class="item__state ${available ? "" : "is-busy"}">
-            ${available ? "Disponible" : "No disponible"}
-          </p>
+          <p class="item__state ${stateMeta.className}">${stateMeta.label}</p>
         </div>
         <button
           type="button"
           class="item__action"
           data-action="rent"
-          ${available ? "" : "disabled"}
+          ${canRent ? "" : "disabled"}
         >
-          Alquilar
+          ${canRent ? "Alquilar" : stateMeta.label}
         </button>
       </div>
     `;
 
     const btn = card.querySelector('[data-action="rent"]');
-    btn?.addEventListener("click", () => onSelect(item));
+    if (canRent) {
+      btn?.addEventListener("click", () => onSelect(item));
+    }
 
     grid.appendChild(card);
   });
+}
+
+function statusLabel(status) {
+  switch (status) {
+    case "in_process":
+      return { label: "En proceso", className: "is-process" };
+    case "rented":
+      return { label: "Prestado", className: "is-rented" };
+    case "available":
+    default:
+      return { label: "Disponible", className: "" };
+  }
 }
 
 export function initRentModal({ onConfirm }) {
@@ -223,40 +241,56 @@ function setChannelButtonsDisabled(disabled) {
   if (wa) wa.disabled = disabled;
 }
 
-export function setupFlowEntry(url) {
+export function setupFlowEntry(url, { onVerifyOk, onVerifyFail } = {}) {
   const entry = document.getElementById("open-flow");
   const frame = document.getElementById("flow-frame");
   const hint = document.getElementById("flow-hint");
   const dialog = flowDialog();
   const closeBtn = document.getElementById("flow-close");
+  const actions = document.getElementById("flow-actions");
+  const okBtn = document.getElementById("flow-ok");
+  const failBtn = document.getElementById("flow-fail");
 
   if (!entry || !dialog) return;
 
-  const openFlow = () => {
-    if (!url) {
-      showToast("El flujo web aún no está configurado", "error");
-      return;
+  const openFlow = ({ showActions = false } = {}) => {
+    if (url) {
+      if (frame && frame.src !== url) frame.src = url;
+      frame?.classList.remove("is-empty");
+      if (hint) hint.hidden = true;
+    } else {
+      frame?.removeAttribute("src");
+      frame?.classList.add("is-empty");
+      if (hint) hint.hidden = false;
     }
-    if (frame && frame.src !== url) frame.src = url;
+    if (actions) actions.hidden = !showActions;
     dialog.showModal();
   };
 
   openFlowFn = openFlow;
 
+  entry.hidden = !url;
   if (!url) {
-    entry.hidden = true;
     frame?.removeAttribute("src");
     frame?.classList.add("is-empty");
     if (hint) hint.hidden = false;
-    return;
+  } else {
+    if (hint) hint.hidden = true;
+    frame?.classList.remove("is-empty");
   }
 
-  entry.hidden = false;
-  if (hint) hint.hidden = true;
-  frame?.classList.remove("is-empty");
-
-  entry.onclick = openFlow;
+  entry.onclick = () => openFlow({ showActions: false });
   closeBtn?.addEventListener("click", () => dialog.close());
+
+  okBtn?.addEventListener("click", async () => {
+    await onVerifyOk?.();
+    dialog.close();
+  });
+
+  failBtn?.addEventListener("click", async () => {
+    await onVerifyFail?.();
+    dialog.close();
+  });
 }
 
 export function setBorrowerLabel(name) {
@@ -266,8 +300,8 @@ export function setBorrowerLabel(name) {
   el.innerHTML = `Sesión de <strong>${escapeHtml(name)}</strong>`;
 }
 
-export function openWebFlow() {
-  openFlowFn?.();
+export function openWebFlow({ showActions = true } = {}) {
+  openFlowFn?.({ showActions });
 }
 
 export function setButtonLoading(button, loading) {

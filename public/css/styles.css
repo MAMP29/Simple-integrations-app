@@ -244,6 +244,22 @@ main {
   color: var(--warn);
 }
 
+.item__state.is-process {
+  color: #8a6a1f;
+}
+
+.item__state.is-rented {
+  color: var(--ink-soft);
+}
+
+.item.is-locked {
+  opacity: 0.78;
+}
+
+.item.is-locked:hover {
+  transform: none;
+}
+
 .item__action,
 .btn {
   appearance: none;
@@ -727,6 +743,10 @@ main {
 
 .flow-frame.is-empty {
   display: none;
+}
+
+.flow-actions {
+  margin-top: 0.25rem;
 }
 
 .toast {
