@@ -91,8 +91,10 @@ app.post("/api/rent", async (req, res) => {
   }
 
   const warrantyOn = Boolean(extendedWarranty);
-  const warrantyTotal = warrantyOn ? WARRANTY_FEE_PER_DAY * rentalDays : 0;
-  const basePrice = item.pricePerDay * rentalDays;
+  const warrantyFeePerDay = warrantyOn ? WARRANTY_FEE_PER_DAY : 0;
+  const warrantyTotal = warrantyFeePerDay * rentalDays;
+  const pricePerDay = item.pricePerDay;
+  const basePrice = pricePerDay * rentalDays;
   const rental_fee = basePrice + warrantyTotal;
   const duration_label = rentalDays === 1 ? "día" : "días";
 
@@ -105,6 +107,8 @@ app.post("/api/rent", async (req, res) => {
       rental_fee,
       rental_base: basePrice,
       rental_warranty: warrantyTotal,
+      price_per_day: pricePerDay,
+      warranty_fee_per_day: warrantyFeePerDay,
       duration_label,
       borrower_name: BORROWER_NAME,
       item_name: item.name,
@@ -122,6 +126,8 @@ app.post("/api/rent", async (req, res) => {
     kycRequired: warrantyOn,
     borrower_name: BORROWER_NAME,
     item_name: item.name,
+    price_per_day: pricePerDay,
+    warranty_fee_per_day: warrantyFeePerDay,
     rental_fee,
     rental_base: basePrice,
     rental_warranty: warrantyTotal,
@@ -166,6 +172,8 @@ app.post("/api/rent", async (req, res) => {
   const templateVars = {
     borrower_name: BORROWER_NAME,
     item_name: item.name,
+    price_per_day: pricePerDay,
+    warranty_fee_per_day: warrantyFeePerDay,
     rental_fee,
     rental_base: basePrice,
     rental_warranty: warrantyTotal,
@@ -295,6 +303,8 @@ app.post("/api/payments/charge", requirePaymentsAuth, (req, res) => {
       item: rental.item_name,
       days: rental.borrow_duration,
       duration_label: rental.duration_label,
+      price_per_day: rental.price_per_day,
+      warranty_fee_per_day: rental.warranty_fee_per_day,
       rental_base,
       rental_warranty,
       total: amount,
