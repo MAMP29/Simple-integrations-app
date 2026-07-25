@@ -9,7 +9,13 @@ const {
   confirmRental,
   cancelRental,
 } = require("./data/rentals");
+const {
+  createPayment,
+  getPayment,
+  findPaymentByRental,
+} = require("./data/payments");
 const { sendOutboundMessage } = require("./lib/outbound");
+const { requirePaymentsAuth } = require("./lib/payments-auth");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -97,6 +103,8 @@ app.post("/api/rent", async (req, res) => {
       channel,
       borrow_duration: rentalDays,
       rental_fee,
+      rental_base: basePrice,
+      rental_warranty: warrantyTotal,
       duration_label,
       borrower_name: BORROWER_NAME,
       item_name: item.name,
@@ -115,6 +123,8 @@ app.post("/api/rent", async (req, res) => {
     borrower_name: BORROWER_NAME,
     item_name: item.name,
     rental_fee,
+    rental_base: basePrice,
+    rental_warranty: warrantyTotal,
     borrow_duration: rentalDays,
     duration_label,
     currency: "USD",
@@ -152,11 +162,13 @@ app.post("/api/rent", async (req, res) => {
     });
   }
 
-  /** Variables del template WA → se envían como var.<nombre> */
+  /** Variables del template / flujo WA → se envían como var.<nombre> */
   const templateVars = {
     borrower_name: BORROWER_NAME,
     item_name: item.name,
     rental_fee,
+    rental_base: basePrice,
+    rental_warranty: warrantyTotal,
     borrow_duration: rentalDays,
     duration_label,
     rental_id: rental.id,
@@ -228,6 +240,80 @@ app.post("/api/rentals/:id/cancel", (req, res) => {
   } catch (err) {
     return sendRentalError(res, err);
   }
+});
+
+/**
+ * Servicio de pagos (simulado) — requiere PAYMENTS_API_KEY.
+ * Headers: Authorization: Bearer <key>  o  X-Payments-Key: <key>
+ */
+app.get("/api/payments/health", requirePaymentsAuth, (_req, res) => {
+  res.json({
+    ok: true,
+    service: "payments",
+    status: "active",
+    mode: "simulation",
+  });
+});
+
+app.post("/api/payments/charge", requirePaymentsAuth, (req, res) => {
+  const { rental_id: rentalId } = req.body ?? {};
+  if (!rentalId) {
+    return res.status(400).json({ error: "rental_id is required" });
+  }
+
+  const rental = getRental(rentalId);
+  if (!rental) {
+    return res.status(404).json({ error: "Rental not found" });
+  }
+  if (rental.status !== "in_process") {
+    return res.status(409).json({
+      error: `Cannot charge rental in status '${rental.status}'`,
+      hint: "Rental must be in_process (reserved) before payment",
+    });
+  }
+
+  const existing = findPaymentByRental(rentalId);
+  if (existing) {
+    return res.status(200).json({
+      ok: true,
+      already_paid: true,
+      payment: existing,
+    });
+  }
+
+  const rental_base = rental.rental_base ?? rental.rental_fee;
+  const rental_warranty = rental.rental_warranty ?? 0;
+  const amount = rental.rental_fee;
+
+  const payment = createPayment({
+    rental_id: rentalId,
+    amount,
+    currency: "USD",
+    rental_base,
+    rental_warranty,
+    breakdown: {
+      item: rental.item_name,
+      days: rental.borrow_duration,
+      duration_label: rental.duration_label,
+      rental_base,
+      rental_warranty,
+      total: amount,
+    },
+  });
+
+  return res.status(200).json({
+    ok: true,
+    payment,
+    message: "Payment approved (simulation)",
+  });
+});
+
+app.get("/api/payments/:id", requirePaymentsAuth, (req, res) => {
+  const payment = getPayment(req.params.id);
+  if (!payment) {
+    return res.status(404).json({ error: "Payment not found" });
+  }
+  res.json({ payment });
 });
 
 /**
