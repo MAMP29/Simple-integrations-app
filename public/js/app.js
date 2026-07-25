@@ -53,10 +53,14 @@ async function confirmRent({ item, days, channel, extendedWarranty }) {
       return;
     }
 
-    showToast(
-      `WhatsApp iniciado (${result.rental_id}): confirma allí la solicitud.`,
-      "ok",
-    );
+    showToast({
+      title: "Abre WhatsApp",
+      message: `Confirma la solicitud de ${item.name} allí para continuar.`,
+      tone: "whatsapp",
+      prominent: true,
+      actionLabel: "Entendido",
+      duration: 8000,
+    });
     await loadCatalog();
   } catch (err) {
     showToast(err.message || "No se pudo iniciar el alquiler", "error");

@@ -24,22 +24,72 @@ export function formatPrice(value) {
   }).format(value);
 }
 
-export function showToast(message, tone = "info") {
+function hideToast() {
+  const el = toastEl();
+  if (!el) return;
+  el.classList.remove("is-visible");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    el.hidden = true;
+  }, 320);
+}
+
+/**
+ * @param {string | {
+ *   message: string,
+ *   title?: string,
+ *   tone?: string,
+ *   duration?: number,
+ *   actionLabel?: string,
+ *   prominent?: boolean,
+ * }} input
+ * @param {string} [legacyTone]
+ */
+export function showToast(input, legacyTone = "info") {
   const el = toastEl();
   if (!el) return;
 
+  const opts =
+    typeof input === "string"
+      ? { message: input, tone: legacyTone }
+      : input;
+
+  const {
+    message,
+    title = "",
+    tone = "info",
+    duration = opts.prominent ? 7000 : 3600,
+    actionLabel = "",
+    prominent = false,
+  } = opts;
+
+  const titleEl = el.querySelector(".toast__title");
+  const messageEl = el.querySelector(".toast__message");
+  const actionEl = el.querySelector(".toast__action");
+
   el.hidden = false;
   el.dataset.tone = tone;
-  el.textContent = message;
-  requestAnimationFrame(() => el.classList.add("is-visible"));
+  el.classList.toggle("toast--prominent", prominent);
+
+  if (titleEl) {
+    titleEl.textContent = title;
+    titleEl.hidden = !title;
+  }
+  if (messageEl) messageEl.textContent = message;
+
+  if (actionEl) {
+    actionEl.hidden = !actionLabel;
+    actionEl.textContent = actionLabel || "Entendido";
+    actionEl.onclick = actionLabel ? () => hideToast() : null;
+  }
+
+  el.classList.remove("is-visible");
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => el.classList.add("is-visible"));
+  });
 
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => {
-    el.classList.remove("is-visible");
-    setTimeout(() => {
-      el.hidden = true;
-    }, 300);
-  }, 3600);
+  toastTimer = setTimeout(hideToast, duration);
 }
 
 export function setCatalogStatus(message, tone = "") {

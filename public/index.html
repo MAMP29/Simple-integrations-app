@@ -154,7 +154,14 @@
       </div>
     </dialog>
 
-    <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+    <div id="toast" class="toast" role="status" aria-live="polite" hidden>
+      <span class="toast__mark" aria-hidden="true"></span>
+      <div class="toast__content">
+        <p class="toast__title" hidden></p>
+        <p class="toast__message"></p>
+      </div>
+      <button type="button" class="toast__action" hidden>Entendido</button>
+    </div>
 
     <script type="module" src="/js/app.js"></script>
   </body>
