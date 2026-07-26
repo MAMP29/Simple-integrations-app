@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <!-- linear-gradient(165deg, #f7faf8 0%, #eef2f0 48%, #e8eef2 100%) -->
+    <linearGradient id="base" x1="37.06%" y1="1.71%" x2="62.94%" y2="98.29%">
+      <stop offset="0%" stop-color="#f7faf8" />
+      <stop offset="48%" stop-color="#eef2f0" />
+      <stop offset="100%" stop-color="#e8eef2" />
+    </linearGradient>
+
+    <!-- radial-gradient(ellipse 80% 55% at 12% -10%, #c5ddd6 0%, transparent 55%) -->
+    <radialGradient id="blob1" gradientUnits="userSpaceOnUse" cx="230.4" cy="-108" rx="768" ry="297">
+      <stop offset="0%" stop-color="#c5ddd6" />
+      <stop offset="55%" stop-color="#c5ddd6" stop-opacity="0" />
+    </radialGradient>
+
+    <!-- radial-gradient(ellipse 70% 50% at 95% 8%, #d4e0ea 0%, transparent 50%) -->
+    <radialGradient id="blob2" gradientUnits="userSpaceOnUse" cx="1824" cy="86.4" rx="672" ry="270">
+      <stop offset="0%" stop-color="#d4e0ea" />
+      <stop offset="50%" stop-color="#d4e0ea" stop-opacity="0" />
+    </radialGradient>
+
+    <!-- radial-gradient(ellipse 60% 40% at 50% 100%, #e4ebe3 0%, transparent 45%) -->
+    <radialGradient id="blob3" gradientUnits="userSpaceOnUse" cx="960" cy="1080" rx="576" ry="216">
+      <stop offset="0%" stop-color="#e4ebe3" />
+      <stop offset="45%" stop-color="#e4ebe3" stop-opacity="0" />
+    </radialGradient>
+
+    <!-- same feTurbulence noise as .atmosphere::after -->
+    <filter id="noise" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="3" stitchTiles="stitch" />
+    </filter>
+  </defs>
+
+  <rect width="1920" height="1080" fill="url(#base)" />
+  <rect width="1920" height="1080" fill="url(#blob1)" />
+  <rect width="1920" height="1080" fill="url(#blob2)" />
+  <rect width="1920" height="1080" fill="url(#blob3)" />
+  <rect width="1920" height="1080" filter="url(#noise)" opacity="0.35" />
+</svg>

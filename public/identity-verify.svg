@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="3840" height="2880" viewBox="0 0 960 720" fill="none" role="img" aria-labelledby="title desc">
+  <title id="title">Verificación de identidad</title>
+  <desc id="desc">Dos capas: placa base y documento de identidad en verdes Kora.</desc>
+
+  <defs>
+    <linearGradient id="cardFace" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f5f7f4" />
+      <stop offset="100%" stop-color="#e8eef2" />
+    </linearGradient>
+
+    <linearGradient id="cardDeep" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#0d6e5f" />
+      <stop offset="100%" stop-color="#0a5247" />
+    </linearGradient>
+
+    <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="14" stdDeviation="18" flood-color="#14212b" flood-opacity="0.14" />
+    </filter>
+  </defs>
+
+  <!-- Capa 1 — placa base -->
+  <g transform="translate(248 212) rotate(-8 232 148)" filter="url(#softShadow)" opacity="0.92">
+    <rect width="464" height="296" rx="28" fill="url(#cardDeep)" />
+  </g>
+
+  <!-- Capa 2 — documento -->
+  <g transform="translate(268 242) rotate(-3 232 148)" filter="url(#softShadow)">
+    <rect width="464" height="296" rx="28" fill="url(#cardFace)" stroke="#0d6e5f" stroke-opacity="0.14" stroke-width="2" />
+
+    <!-- foto -->
+    <rect x="36" y="44" width="132" height="168" rx="18" fill="#0a5247" />
+    <circle cx="102" cy="108" r="34" fill="#c5ddd6" opacity="0.85" />
+    <ellipse cx="102" cy="178" rx="48" ry="28" fill="#c5ddd6" opacity="0.65" />
+
+    <!-- barras tipo texto -->
+    <rect x="196" y="52" width="200" height="18" rx="9" fill="#0d6e5f" opacity="0.55" />
+    <rect x="196" y="86" width="148" height="12" rx="6" fill="#3a4a57" opacity="0.28" />
+    <rect x="196" y="114" width="176" height="12" rx="6" fill="#3a4a57" opacity="0.22" />
+    <rect x="196" y="142" width="120" height="12" rx="6" fill="#3a4a57" opacity="0.18" />
+    <rect x="288" y="198" width="140" height="10" rx="5" fill="#0d6e5f" opacity="0.2" />
+    <rect x="288" y="220" width="110" height="10" rx="5" fill="#0d6e5f" opacity="0.14" />
+
+    <!-- chip -->
+    <rect x="196" y="186" width="72" height="52" rx="10" fill="#0d6e5f" opacity="0.7" />
+    <path d="M208 202 H256 M208 214 H244 M208 226 H250" stroke="#c5ddd6" stroke-width="3" stroke-linecap="round" opacity="0.55" />
+  </g>
+</svg>
