@@ -18,6 +18,7 @@ import {
 
 /** Rental web en verificación (garantía). */
 let pendingWebRentalId = null;
+let webVerifyBusy = false;
 
 async function loadCatalog() {
   setCatalogStatus("Cargando catálogo…");
@@ -49,7 +50,16 @@ async function confirmRent({ item, days, channel, extendedWarranty }) {
       pendingWebRentalId = result.rental_id;
       showToast(`En proceso: completa la verificación de ${item.name}`, "ok");
       await loadCatalog();
-      openWebFlow({ showActions: true });
+
+      if (result.iframeUrl) {
+        openWebFlow({ url: result.iframeUrl, showActions: false });
+      } else {
+        showToast(
+          "No se recibió URL de verificación; usa los botones de simulación",
+          "error"
+        );
+        openWebFlow({ url: "", showActions: true });
+      }
       return;
     }
 
@@ -69,39 +79,50 @@ async function confirmRent({ item, days, channel, extendedWarranty }) {
 }
 
 async function handleWebVerifyOk() {
-  if (!pendingWebRentalId) return;
+  if (!pendingWebRentalId || webVerifyBusy) return;
+  const rentalId = pendingWebRentalId;
+  pendingWebRentalId = null;
+  webVerifyBusy = true;
   try {
-    await confirmRental(pendingWebRentalId);
+    await confirmRental(rentalId);
     showToast("Validación OK — equipo prestado", "ok");
-    pendingWebRentalId = null;
     await loadCatalog();
   } catch (err) {
+    pendingWebRentalId = rentalId;
     showToast(err.message || "No se pudo confirmar", "error");
+  } finally {
+    webVerifyBusy = false;
   }
 }
 
 async function handleWebVerifyFail() {
-  if (!pendingWebRentalId) return;
+  if (!pendingWebRentalId || webVerifyBusy) return;
+  const rentalId = pendingWebRentalId;
+  pendingWebRentalId = null;
+  webVerifyBusy = true;
   try {
-    await cancelRental(pendingWebRentalId);
+    await cancelRental(rentalId);
     showToast("Validación fallida — reserva liberada", "error");
-    pendingWebRentalId = null;
     await loadCatalog();
   } catch (err) {
+    pendingWebRentalId = rentalId;
     showToast(err.message || "No se pudo cancelar", "error");
+  } finally {
+    webVerifyBusy = false;
   }
 }
 
 async function loadConfig() {
   try {
     const config = await fetchConfig();
-    setupFlowEntry(config.iframeFlowUrl || "", {
+    setupFlowEntry({
+      iframeOrigin: config.iframeOrigin || "",
       onVerifyOk: handleWebVerifyOk,
       onVerifyFail: handleWebVerifyFail,
     });
     setBorrowerLabel(config.borrower_name || "");
   } catch {
-    setupFlowEntry("", {
+    setupFlowEntry({
       onVerifyOk: handleWebVerifyOk,
       onVerifyFail: handleWebVerifyFail,
     });

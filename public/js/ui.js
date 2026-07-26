@@ -291,7 +291,11 @@ function setChannelButtonsDisabled(disabled) {
   if (wa) wa.disabled = disabled;
 }
 
-export function setupFlowEntry(url, { onVerifyOk, onVerifyFail } = {}) {
+export function setupFlowEntry({
+  iframeOrigin = "",
+  onVerifyOk,
+  onVerifyFail,
+} = {}) {
   const entry = document.getElementById("open-flow");
   const frame = document.getElementById("flow-frame");
   const hint = document.getElementById("flow-hint");
@@ -303,9 +307,9 @@ export function setupFlowEntry(url, { onVerifyOk, onVerifyFail } = {}) {
 
   if (!entry || !dialog) return;
 
-  const openFlow = ({ showActions = false } = {}) => {
+  const openFlow = ({ url = "", showActions = false } = {}) => {
     if (url) {
-      if (frame && frame.src !== url) frame.src = url;
+      if (frame) frame.src = url;
       frame?.classList.remove("is-empty");
       if (hint) hint.hidden = true;
     } else {
@@ -319,18 +323,16 @@ export function setupFlowEntry(url, { onVerifyOk, onVerifyFail } = {}) {
 
   openFlowFn = openFlow;
 
-  entry.hidden = !url;
-  if (!url) {
-    frame?.removeAttribute("src");
-    frame?.classList.add("is-empty");
-    if (hint) hint.hidden = false;
-  } else {
-    if (hint) hint.hidden = true;
-    frame?.classList.remove("is-empty");
-  }
+  entry.hidden = true;
+  frame?.removeAttribute("src");
+  frame?.classList.add("is-empty");
+  if (hint) hint.hidden = false;
 
   entry.onclick = () => openFlow({ showActions: false });
-  closeBtn?.addEventListener("click", () => dialog.close());
+  closeBtn?.addEventListener("click", () => {
+    if (frame) frame.removeAttribute("src");
+    dialog.close();
+  });
 
   okBtn?.addEventListener("click", async () => {
     await onVerifyOk?.();
@@ -341,6 +343,31 @@ export function setupFlowEntry(url, { onVerifyOk, onVerifyFail } = {}) {
     await onVerifyFail?.();
     dialog.close();
   });
+
+  window.addEventListener("message", async (event) => {
+    if (iframeOrigin && event.origin !== iframeOrigin) return;
+    if (!iframeOrigin) return;
+
+    const raw = event.data;
+    const msg =
+      typeof raw === "string"
+        ? raw
+        : raw?.type || raw?.event || raw?.message || "";
+
+    if (msg === "truora.process.succeeded") {
+      await onVerifyOk?.();
+      if (frame) frame.removeAttribute("src");
+      dialog.close();
+      return;
+    }
+
+    if (msg === "truora.process.failed") {
+      await onVerifyFail?.();
+      if (frame) frame.removeAttribute("src");
+      dialog.close();
+    }
+    /* truora.steps.completed → aún no es estado final; no tocar el rental */
+  });
 }
 
 export function setBorrowerLabel(name) {
@@ -350,8 +377,8 @@ export function setBorrowerLabel(name) {
   el.innerHTML = `Sesión de <strong>${escapeHtml(name)}</strong>`;
 }
 
-export function openWebFlow({ showActions = true } = {}) {
-  openFlowFn?.({ showActions });
+export function openWebFlow({ url = "", showActions = false } = {}) {
+  openFlowFn?.({ url, showActions });
 }
 
 export function setButtonLoading(button, loading) {

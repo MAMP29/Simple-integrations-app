@@ -16,6 +16,7 @@ const {
 } = require("./data/payments");
 const { sendOutboundMessage } = require("./lib/outbound");
 const { requirePaymentsAuth } = require("./lib/payments-auth");
+const { requestIntegrationToken } = require("./lib/web-flow");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -23,6 +24,10 @@ const BORROWER_NAME = process.env.BORROWER_NAME || "Ana Rivera";
 const WARRANTY_FEE_PER_DAY = 6;
 
 app.use(express.json());
+app.use((_req, res, next) => {
+  res.setHeader("Permissions-Policy", "camera=*, microphone=*");
+  next();
+});
 app.use(express.static("public"));
 
 function sendRentalError(res, err) {
@@ -32,8 +37,16 @@ function sendRentalError(res, err) {
 
 /** Config pública para el frontend. */
 app.get("/api/config", (_req, res) => {
+  const iframeFlowUrl = process.env.IFRAME_FLOW_URL || "";
+  let iframeOrigin = "";
+  try {
+    if (iframeFlowUrl) iframeOrigin = new URL(iframeFlowUrl).origin;
+  } catch {
+    /* URL inválida en env */
+  }
+
   res.json({
-    iframeFlowUrl: process.env.IFRAME_FLOW_URL || "",
+    iframeOrigin,
     borrower_name: BORROWER_NAME,
   });
 });
@@ -143,20 +156,66 @@ app.post("/api/rent", async (req, res) => {
       rental = reserveRental(rental.id);
       if (!warrantyOn) {
         rental = confirmRental(rental.id);
+        return res.status(200).json({
+          ok: true,
+          ...apiResult,
+          rental_status: rental.status,
+          item: rental.item,
+          message: "Web rental confirmed",
+        });
       }
     } catch (err) {
       return sendRentalError(res, err);
     }
 
-    return res.status(200).json({
-      ok: true,
-      ...apiResult,
-      rental_status: rental.status,
-      item: rental.item,
-      message: warrantyOn
-        ? "Web rental reserved — complete verification"
-        : "Web rental confirmed",
-    });
+    /** Con garantía: token Truora por proceso (account_id = rental_id). */
+    try {
+      const session = await requestIntegrationToken({
+        accountId: rental.id,
+      });
+
+      if (!session.ok) {
+        try {
+          cancelRental(rental.id);
+        } catch {
+          /* best effort */
+        }
+        return res.status(502).json({
+          error: "Failed to create identity verification session",
+          status: session.status,
+          rental_id: rental.id,
+          upstream: session.body,
+        });
+      }
+
+      return res.status(200).json({
+        ok: true,
+        ...apiResult,
+        rental_status: rental.status,
+        item: rental.item,
+        iframeUrl: session.iframeUrl,
+        message: "Web rental reserved — complete verification",
+      });
+    } catch (err) {
+      try {
+        cancelRental(rental.id);
+      } catch {
+        /* best effort */
+      }
+      if (err.status === 503) {
+        return res.status(503).json({
+          error: err.message,
+          missing: err.missing,
+          rental_id: rental.id,
+        });
+      }
+      console.error("rent/web-flow error:", err);
+      return res.status(502).json({
+        error: "Failed to reach identity API",
+        detail: err.message,
+        rental_id: rental.id,
+      });
+    }
   }
 
   const outboundUrl = process.env.OUTBOUND_API_URL;

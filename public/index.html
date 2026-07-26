@@ -131,17 +131,18 @@
           </button>
         </header>
         <p class="flow-hint" id="flow-hint">
-          Configura <code>IFRAME_FLOW_URL</code> para embeber el flujo.
+          La verificación se abre al alquilar con garantía por el canal web.
         </p>
         <iframe
           id="flow-frame"
           class="flow-frame"
           title="Flujo de verificación"
+          allow="camera; microphone"
           loading="lazy"
           referrerpolicy="no-referrer"
         ></iframe>
         <div class="flow-actions" id="flow-actions" hidden>
-          <p class="dialog__note">Simula el resultado de la validación (canal web).</p>
+          <p class="dialog__note">Simula el resultado (solo si no hay iframe Truora).</p>
           <div class="dialog__actions dialog__actions--split">
             <button type="button" class="btn btn--ghost" id="flow-fail">
               Validación fallida
