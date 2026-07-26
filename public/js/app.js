@@ -1,6 +1,5 @@
 import {
   cancelRental,
-  confirmRental,
   fetchConfig,
   fetchItems,
   rentItem,
@@ -18,6 +17,7 @@ import {
 
 /** Rental web en verificación (garantía). */
 let pendingWebRentalId = null;
+let pendingPayUrl = null;
 let webVerifyBusy = false;
 
 async function loadCatalog() {
@@ -29,6 +29,13 @@ async function loadCatalog() {
     setCatalogStatus(err.message || "Error al cargar el catálogo", "error");
     showToast("No se pudo cargar el catálogo", "error");
   }
+}
+
+function goToPay(rentalId, payUrl) {
+  const url =
+    payUrl ||
+    `/pay.html?rental_id=${encodeURIComponent(rentalId)}`;
+  window.location.href = url;
 }
 
 async function confirmRent({ item, days, channel, extendedWarranty }) {
@@ -48,6 +55,7 @@ async function confirmRent({ item, days, channel, extendedWarranty }) {
       }
 
       pendingWebRentalId = result.rental_id;
+      pendingPayUrl = result.payUrl || null;
       showToast(`En proceso: completa la verificación de ${item.name}`, "ok");
       await loadCatalog();
 
@@ -78,18 +86,17 @@ async function confirmRent({ item, days, channel, extendedWarranty }) {
   }
 }
 
+/** KYC OK → orden de pago (no confirma todavía). */
 async function handleWebVerifyOk() {
   if (!pendingWebRentalId || webVerifyBusy) return;
   const rentalId = pendingWebRentalId;
+  const payUrl = pendingPayUrl;
   pendingWebRentalId = null;
+  pendingPayUrl = null;
   webVerifyBusy = true;
   try {
-    await confirmRental(rentalId);
-    showToast("Validación OK — equipo prestado", "ok");
-    await loadCatalog();
-  } catch (err) {
-    pendingWebRentalId = rentalId;
-    showToast(err.message || "No se pudo confirmar", "error");
+    showToast("Validación OK — continúa con el pago", "ok");
+    goToPay(rentalId, payUrl);
   } finally {
     webVerifyBusy = false;
   }
@@ -99,6 +106,7 @@ async function handleWebVerifyFail() {
   if (!pendingWebRentalId || webVerifyBusy) return;
   const rentalId = pendingWebRentalId;
   pendingWebRentalId = null;
+  pendingPayUrl = null;
   webVerifyBusy = true;
   try {
     await cancelRental(rentalId);

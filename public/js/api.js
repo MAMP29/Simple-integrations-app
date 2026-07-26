@@ -47,3 +47,10 @@ export async function cancelRental(rentalId) {
   const res = await fetch(`/api/rentals/${rentalId}/cancel`, { method: "POST" });
   return readJson(res);
 }
+
+export async function checkoutRental(rentalId) {
+  const res = await fetch(`/api/rentals/${rentalId}/checkout`, {
+    method: "POST",
+  });
+  return readJson(res);
+}

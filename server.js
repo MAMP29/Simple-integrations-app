@@ -35,6 +35,67 @@ function sendRentalError(res, err) {
   return res.status(status).json({ error: err.message });
 }
 
+/** Base pública de la app (redirect Truora necesita URL absoluta). */
+function appBaseUrl(req) {
+  const fromEnv = (process.env.PUBLIC_APP_URL || "").replace(/\/$/, "");
+  if (fromEnv) return fromEnv;
+  const proto = req.get("x-forwarded-proto") || req.protocol || "http";
+  const host = req.get("x-forwarded-host") || req.get("host");
+  return `${proto}://${host}`;
+}
+
+function payUrlForRental(req, rentalId) {
+  return `${appBaseUrl(req)}/pay.html?rental_id=${encodeURIComponent(rentalId)}`;
+}
+
+/**
+ * Cobro simulado. No confirma el rental (eso lo hace checkout o la integración WA).
+ * @returns {{ payment: object, already_paid: boolean, rental: object }}
+ */
+function simulateCharge(rentalId) {
+  const rental = getRental(rentalId);
+  if (!rental) {
+    const err = new Error("Rental not found");
+    err.status = 404;
+    throw err;
+  }
+  if (rental.status !== "in_process") {
+    const err = new Error(`Cannot charge rental in status '${rental.status}'`);
+    err.status = 409;
+    err.hint = "Rental must be in_process (reserved) before payment";
+    throw err;
+  }
+
+  const existing = findPaymentByRental(rentalId);
+  if (existing) {
+    return { payment: existing, already_paid: true, rental };
+  }
+
+  const rental_base = rental.rental_base ?? rental.rental_fee;
+  const rental_warranty = rental.rental_warranty ?? 0;
+  const amount = rental.rental_fee;
+
+  const payment = createPayment({
+    rental_id: rentalId,
+    amount,
+    currency: "USD",
+    rental_base,
+    rental_warranty,
+    breakdown: {
+      item: rental.item_name,
+      days: rental.borrow_duration,
+      duration_label: rental.duration_label,
+      price_per_day: rental.price_per_day,
+      warranty_fee_per_day: rental.warranty_fee_per_day,
+      rental_base,
+      rental_warranty,
+      total: amount,
+    },
+  });
+
+  return { payment, already_paid: false, rental };
+}
+
 /** Config pública para el frontend. */
 app.get("/api/config", (_req, res) => {
   const iframeFlowUrl = process.env.IFRAME_FLOW_URL || "";
@@ -168,10 +229,12 @@ app.post("/api/rent", async (req, res) => {
       return sendRentalError(res, err);
     }
 
-    /** Con garantía: token Truora por proceso (account_id = rental_id). */
+    /** Con garantía: token por proceso (account_id = rental_id). */
     try {
+      const payUrl = payUrlForRental(req, rental.id);
       const session = await requestIntegrationToken({
         accountId: rental.id,
+        redirectUrl: payUrl,
       });
 
       if (!session.ok) {
@@ -194,6 +257,7 @@ app.post("/api/rent", async (req, res) => {
         rental_status: rental.status,
         item: rental.item,
         iframeUrl: session.iframeUrl,
+        payUrl,
         message: "Web rental reserved — complete verification",
       });
     } catch (err) {
@@ -310,6 +374,35 @@ app.post("/api/rentals/:id/cancel", (req, res) => {
 });
 
 /**
+ * Checkout web (sin API key en el browser): cobra simulado + confirma.
+ * Paralelo a POST /api/payments/charge usado por la integración WA.
+ */
+app.post("/api/rentals/:id/checkout", (req, res) => {
+  try {
+    const { payment, already_paid } = simulateCharge(req.params.id);
+    const rental = confirmRental(req.params.id);
+    return res.json({
+      ok: true,
+      already_paid,
+      payment,
+      rental,
+      item: rental.item,
+      message: already_paid
+        ? "Already paid — rental confirmed"
+        : "Payment approved — rental confirmed",
+    });
+  } catch (err) {
+    if (err.hint) {
+      return res.status(err.status || 409).json({
+        error: err.message,
+        hint: err.hint,
+      });
+    }
+    return sendRentalError(res, err);
+  }
+});
+
+/**
  * Servicio de pagos (simulado) — requiere PAYMENTS_API_KEY.
  * Headers: Authorization: Bearer <key>  o  X-Payments-Key: <key>
  */
@@ -328,53 +421,25 @@ app.post("/api/payments/charge", requirePaymentsAuth, (req, res) => {
     return res.status(400).json({ error: "rental_id is required" });
   }
 
-  const rental = getRental(rentalId);
-  if (!rental) {
-    return res.status(404).json({ error: "Rental not found" });
-  }
-  if (rental.status !== "in_process") {
-    return res.status(409).json({
-      error: `Cannot charge rental in status '${rental.status}'`,
-      hint: "Rental must be in_process (reserved) before payment",
-    });
-  }
-
-  const existing = findPaymentByRental(rentalId);
-  if (existing) {
+  try {
+    const { payment, already_paid } = simulateCharge(rentalId);
     return res.status(200).json({
       ok: true,
-      already_paid: true,
-      payment: existing,
+      already_paid,
+      payment,
+      message: already_paid
+        ? "Already paid (simulation)"
+        : "Payment approved (simulation)",
     });
+  } catch (err) {
+    if (err.hint) {
+      return res.status(err.status || 409).json({
+        error: err.message,
+        hint: err.hint,
+      });
+    }
+    return sendRentalError(res, err);
   }
-
-  const rental_base = rental.rental_base ?? rental.rental_fee;
-  const rental_warranty = rental.rental_warranty ?? 0;
-  const amount = rental.rental_fee;
-
-  const payment = createPayment({
-    rental_id: rentalId,
-    amount,
-    currency: "USD",
-    rental_base,
-    rental_warranty,
-    breakdown: {
-      item: rental.item_name,
-      days: rental.borrow_duration,
-      duration_label: rental.duration_label,
-      price_per_day: rental.price_per_day,
-      warranty_fee_per_day: rental.warranty_fee_per_day,
-      rental_base,
-      rental_warranty,
-      total: amount,
-    },
-  });
-
-  return res.status(200).json({
-    ok: true,
-    payment,
-    message: "Payment approved (simulation)",
-  });
 });
 
 app.get("/api/payments/:id", requirePaymentsAuth, (req, res) => {
@@ -383,17 +448,6 @@ app.get("/api/payments/:id", requirePaymentsAuth, (req, res) => {
     return res.status(404).json({ error: "Payment not found" });
   }
   res.json({ payment });
-});
-
-/**
- * Proxy / punto de entrada para validación de identidad.
- * Placeholder — cablear la herramienta de identidad después.
- */
-app.post("/api/identity/verify", async (req, res) => {
-  res.status(501).json({
-    error: "Identity verification not wired yet",
-    received: req.body ?? {},
-  });
 });
 
 app.listen(PORT, () => {
