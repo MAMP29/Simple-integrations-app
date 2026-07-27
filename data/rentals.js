@@ -48,6 +48,9 @@ function createRental({
     duration_label,
     extendedWarranty: Boolean(extendedWarranty),
     kycRequired: Boolean(extendedWarranty),
+    kyc_ok: null,
+    kyc_at: null,
+    kyc_process_id: null,
     phone: phone || null,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -145,10 +148,31 @@ function cancelRental(id) {
   return { ...rental, item: publicItem };
 }
 
+/**
+ * Marca resultado KYC sin cambiar status del rental (sigue in_process hasta pago/confirm).
+ * @param {string} id
+ * @param {{ ok: boolean, processId?: string|null }} result
+ */
+function markKycResult(id, { ok, processId = null }) {
+  const rental = rentals.get(id);
+  if (!rental) {
+    const err = new Error("Rental not found");
+    err.status = 404;
+    throw err;
+  }
+
+  rental.kyc_ok = Boolean(ok);
+  rental.kyc_at = new Date().toISOString();
+  if (processId) rental.kyc_process_id = processId;
+  touch(rental);
+  return { ...rental };
+}
+
 module.exports = {
   createRental,
   getRental,
   reserveRental,
   confirmRental,
   cancelRental,
+  markKycResult,
 };

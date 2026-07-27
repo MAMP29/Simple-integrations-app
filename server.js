@@ -2,32 +2,115 @@ require("dotenv").config();
 
 const express = require("express");
 const { listItems, getItemById } = require("./data/items");
+const { sendOutboundMessage } = require("./lib/outbound");
+const { requirePaymentsAuth } = require("./lib/payments-auth");
+const { requestIntegrationToken } = require("./lib/web-flow");
+const {
+  extractToken,
+  normalizeWebhookPayload,
+  verifyWebhookToken,
+} = require("./lib/truora-webhook");
 const {
   createRental,
   getRental,
   reserveRental,
   confirmRental,
   cancelRental,
+  markKycResult,
 } = require("./data/rentals");
 const {
   createPayment,
   getPayment,
   findPaymentByRental,
 } = require("./data/payments");
-const { sendOutboundMessage } = require("./lib/outbound");
-const { requirePaymentsAuth } = require("./lib/payments-auth");
-const { requestIntegrationToken } = require("./lib/web-flow");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const BORROWER_NAME = process.env.BORROWER_NAME || "Ana Rivera";
 const WARRANTY_FEE_PER_DAY = 6;
 
-app.use(express.json());
 app.use((_req, res, next) => {
   res.setHeader("Permissions-Policy", "camera=*, microphone=*");
   next();
 });
+
+/**
+ * Webhook Truora (Web Processes). Raw body: el JWT puede venir como texto o JSON.
+ * Debe ir antes de express.json() para no perder el body.
+ */
+app.post(
+  "/api/webhooks/truora",
+  express.raw({ type: "*/*", limit: "1mb" }),
+  (req, res) => {
+    try {
+      const token = extractToken(req.body);
+      const secret = process.env.TRUORA_WEBHOOK_SECRET || "";
+      const { verified, payload } = verifyWebhookToken(token, secret || undefined);
+      const normalized = normalizeWebhookPayload(payload);
+
+      console.log("[truora-webhook]", {
+        verified,
+        outcome: normalized.outcome,
+        accountId: normalized.accountId,
+        processId: normalized.processId,
+        flowId: normalized.flowId,
+        eventRaw: normalized.eventRaw,
+      });
+
+      let action = "logged";
+      let rental = normalized.accountId
+        ? getRental(normalized.accountId)
+        : null;
+
+      if (normalized.accountId && rental) {
+        if (normalized.outcome === "failed" && rental.status === "in_process") {
+          rental = cancelRental(normalized.accountId);
+          action = "cancelled";
+        } else if (
+          normalized.outcome === "success" &&
+          rental.status === "in_process"
+        ) {
+          rental = markKycResult(normalized.accountId, {
+            ok: true,
+            processId: normalized.processId,
+          });
+          action = "kyc_ok";
+        } else if (normalized.outcome === "success") {
+          rental = markKycResult(normalized.accountId, {
+            ok: true,
+            processId: normalized.processId,
+          });
+          action = "kyc_ok_noted";
+        } else if (normalized.outcome === "failed") {
+          rental = markKycResult(normalized.accountId, {
+            ok: false,
+            processId: normalized.processId,
+          });
+          action = "kyc_failed_noted";
+        }
+      } else if (normalized.accountId && !rental) {
+        action = "unknown_account";
+      }
+
+      return res.status(200).json({
+        ok: true,
+        verified,
+        action,
+        outcome: normalized.outcome,
+        account_id: normalized.accountId,
+        rental_id: rental?.id || null,
+        rental_status: rental?.status || null,
+        kyc_ok: rental?.kyc_ok ?? null,
+      });
+    } catch (err) {
+      console.error("[truora-webhook] error:", err.message);
+      const status = err.status || 500;
+      return res.status(status).json({ error: err.message });
+    }
+  }
+);
+
+app.use(express.json());
 app.use(express.static("public"));
 
 function sendRentalError(res, err) {
