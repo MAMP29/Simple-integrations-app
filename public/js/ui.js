@@ -300,12 +300,21 @@ export function setupFlowEntry({
   const frame = document.getElementById("flow-frame");
   const hint = document.getElementById("flow-hint");
   const dialog = flowDialog();
-  const closeBtn = document.getElementById("flow-close");
   const actions = document.getElementById("flow-actions");
   const okBtn = document.getElementById("flow-ok");
   const failBtn = document.getElementById("flow-fail");
 
   if (!entry || !dialog) return;
+
+  /** Solo true al cerrar por éxito/fallo del flujo (no Escape / backdrop). */
+  let allowFlowClose = false;
+
+  const finishFlowDialog = () => {
+    allowFlowClose = true;
+    if (frame) frame.removeAttribute("src");
+    dialog.close();
+    allowFlowClose = false;
+  };
 
   const openFlow = ({ url = "", showActions = false } = {}) => {
     if (url) {
@@ -329,19 +338,20 @@ export function setupFlowEntry({
   if (hint) hint.hidden = false;
 
   entry.onclick = () => openFlow({ showActions: false });
-  closeBtn?.addEventListener("click", () => {
-    if (frame) frame.removeAttribute("src");
-    dialog.close();
+
+  // Escape (y cancel nativo): no abandonar un proceso Truora a medias.
+  dialog.addEventListener("cancel", (event) => {
+    if (!allowFlowClose) event.preventDefault();
   });
 
   okBtn?.addEventListener("click", async () => {
     await onVerifyOk?.();
-    dialog.close();
+    finishFlowDialog();
   });
 
   failBtn?.addEventListener("click", async () => {
     await onVerifyFail?.();
-    dialog.close();
+    finishFlowDialog();
   });
 
   window.addEventListener("message", async (event) => {
@@ -356,15 +366,13 @@ export function setupFlowEntry({
 
     if (msg === "truora.process.succeeded") {
       await onVerifyOk?.();
-      if (frame) frame.removeAttribute("src");
-      dialog.close();
+      finishFlowDialog();
       return;
     }
 
     if (msg === "truora.process.failed") {
       await onVerifyFail?.();
-      if (frame) frame.removeAttribute("src");
-      dialog.close();
+      finishFlowDialog();
     }
     /* truora.steps.completed → aún no es estado final; no tocar el rental */
   });
